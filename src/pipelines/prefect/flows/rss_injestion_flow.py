@@ -1,6 +1,6 @@
 from prefect import flow
 from src.models.sql_models import SubstackArticle
-
+from utils.logger_util import setup_loggin
 
 @flow(
     name="rss_ingest_flow",
@@ -10,14 +10,31 @@ from src.models.sql_models import SubstackArticle
     retry_delay_seconds=120,
 )
 def rss_ingestion_flow(article_model: type[SubstackArticle] = SubstackArticle) -> None:
-    # logger = setup_loggin()
+    """Fetch and ingest articles from configured RSS feeds concurrently.
+
+    Each feed is fetched in parallel and ingested into the database
+    with error handling at each stage. Ensures the database engine is disposed
+    after completion.
+
+    Args:
+        article_model (type[SubstackArticle]): SQLAlchemy model for storing articles.
+
+    Returns:
+        None
+
+    Raises:
+        RuntimeError: If ingestion fails for all feeds.
+        Exception: For unexpected errors during execution.
+    """
+        
+    logger = setup_loggin()
     # engine = init_engine()
     errors = []
 
     # Tracking counters
     per_feed_counts = dict(str,int) = {}
     total_ingested = 0
-    
+
     try:
         pass
         # 1. Fetch articles concurrently
