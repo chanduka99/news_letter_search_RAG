@@ -1,9 +1,11 @@
 from prefect import flow
+from src.models.article_models import FeedItem
 from src.models.sql_models import SubstackArticle
-from src.utils.logger_util import setup_loggin
+from src.utils.logger_util import setup_logging
 from src.infrastructure.supabase.init_session import init_engine
 
 from src.config import settings
+
 
 @flow(
     name="rss_ingest_flow",
@@ -29,23 +31,28 @@ def rss_ingestion_flow(article_model: type[SubstackArticle] = SubstackArticle) -
         RuntimeError: If ingestion fails for all feeds.
         Exception: For unexpected errors during execution.
     """
-        
-    logger = setup_loggin()
+
+    logger = setup_logging()
     engine = init_engine()
     errors = []
 
     # Tracking counters
-    per_feed_counts = dict(str,int) = {}
+    per_feed_counts = dict[str, int] = {}
     total_ingested = 0
 
     try:
-        if settings.rss.feed:
+        if settings.rss.feeds:
             logger.warning("No feeds found in configuration.")
             return
-        
-        
-        # 1. Fetch articles concurrently
 
+        feeds = [
+            FeedItem(name=f.name, author=f.author, url=f.url)
+            for f in settings.rss.feeds
+        ]
+        logger.info(f"Processing {len(feeds)} feeds concurrently...")
+
+        # 1. Fetch articles concurrently
+        # fetched_article_futures = fetch_rss_entries.map()
         # 2. Ingest concurrtently per feed
 
         # 3. Wait for all ingestion tasks

@@ -8,7 +8,7 @@ from prefect.context import get_run_context
 from prefect.logging import get_run_logger
 
 
-def setup_loggin(log_level: str | None = None):
+def setup_logging(log_level: str | None = None):
     """Returns a logger configured for the current environment.
 
     - Inside Prefect flow/task: Prefect's run logger (`logging.Logger`).
