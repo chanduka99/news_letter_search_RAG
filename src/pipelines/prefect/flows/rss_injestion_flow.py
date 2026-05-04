@@ -15,7 +15,9 @@ def rss_ingestion_flow(article_model: type[SubstackArticle] = SubstackArticle) -
     errors = []
 
     # Tracking counters
-
+    per_feed_counts = dict(str,int) = {}
+    total_ingested = 0
+    
     try:
         pass
         # 1. Fetch articles concurrently
