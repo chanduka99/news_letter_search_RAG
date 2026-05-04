@@ -1,6 +1,9 @@
 from prefect import flow
 from src.models.sql_models import SubstackArticle
-from utils.logger_util import setup_loggin
+from src.utils.logger_util import setup_loggin
+from src.infrastructure.supabase.init_session import init_engine
+
+from src.config import settings
 
 @flow(
     name="rss_ingest_flow",
@@ -28,7 +31,7 @@ def rss_ingestion_flow(article_model: type[SubstackArticle] = SubstackArticle) -
     """
         
     logger = setup_loggin()
-    # engine = init_engine()
+    engine = init_engine()
     errors = []
 
     # Tracking counters
@@ -36,7 +39,11 @@ def rss_ingestion_flow(article_model: type[SubstackArticle] = SubstackArticle) -
     total_ingested = 0
 
     try:
-        pass
+        if settings.rss.feed:
+            logger.warning("No feeds found in configuration.")
+            return
+        
+        
         # 1. Fetch articles concurrently
 
         # 2. Ingest concurrtently per feed

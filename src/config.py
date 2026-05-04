@@ -2,6 +2,8 @@ from typing import ClassVar
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import BaseModel, Field, SecretStr
 
+from src.models.article_models import FeedItem
+
 
 # -----------------------------
 # Supabase db settings
@@ -23,10 +25,20 @@ class SupabaseDBSettings(BaseModel):
 
 
 # -----------------------------
+# RSSSettings
+# -----------------------------
+class RSSSettings(BaseModel):
+    feeds: list[FeedItem] = Field(
+        default_factory=list[FeedItem], description="List of RSS feed items"
+    )
+
+
+# -----------------------------
 # Main Settings
 # -----------------------------
 class Settings(BaseSettings):
     supabase_db: SupabaseDBSettings = Field(default_factory=SupabaseDBSettings)
+    rss: RSSSettings = Field(default_factory=RSSSettings)
 
     # Pydantic v2 model config
     model_config: ClassVar[SettingsConfigDict] = SettingsConfigDict(
