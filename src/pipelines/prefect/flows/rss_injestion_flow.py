@@ -98,7 +98,7 @@ def rss_ingestion_flow(article_model: type[SubstackArticle] = SubstackArticle) -
         # 3. Wait for all ingestion tasks
         for r in results:
             try:
-                r.results()
+                r.result()
             except Exception as e:
                 logger.error(f"Error in ingest_from_rss task: {e}")
                 errors.append("Task Failure")
