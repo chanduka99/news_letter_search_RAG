@@ -1,0 +1,21 @@
+# Makefile
+
+# Check if .env exists
+ifeq (,$(wildcard .env))
+$(error .env file is missing at .env. Please create one based on .env.example)
+endif
+
+# Load environment variables from .env
+include .env
+
+#################################################################################
+## Supabase Commands
+#################################################################################
+
+supabase-create: ## Create Supabase database
+	@echo "Creating Supabase database..."
+	uv run python -m src.infrastructure.supabase.create_db
+
+supabase-delete: ## Delete Supabase database
+	@echo "Deleting Supabase database..."
+	uv run python -m src.infrastructure.supabase.delete_db
