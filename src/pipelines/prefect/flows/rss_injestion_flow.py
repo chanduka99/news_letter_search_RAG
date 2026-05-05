@@ -96,11 +96,30 @@ def rss_ingestion_flow(article_model: type[SubstackArticle] = SubstackArticle) -
                 )
                 errors.append(f"Ingest error: {feed.name}")
         # 3. Wait for all ingestion tasks
+        for r in results:
+            try:
+                r.results()
+            except Exception as e:
+                logger.error(f"Error in ingest_from_rss task: {e}")
+                errors.append("Task Failure")
+
+        # ---------- Summary logging ----------
+        logger.info("Ingest Summary per feed:")
+
+        for feed_name, count in per_feed_counts.items():
+            logger.info(f"   • {feed_name}: {count} article(s) ingested")
+
+        logger.info(f"Total ingested across all feeds: {total_ingested}")
+
+        if errors:
+            raise RuntimeError(f"Flow completed with errors: {errors}")
 
     except Exception as e:
-        pass
         # log error
+        logger.error(f"Unexpected error in rss_ingest_flow: {e}")
+        raise
     finally:
-        pass
         # dispose engine
+        engine.dispose()
         # log info
+        logger.info("Database engine disposed.")
