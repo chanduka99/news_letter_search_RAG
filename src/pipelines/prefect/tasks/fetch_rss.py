@@ -88,9 +88,6 @@ def fetch_rss_entries(
                                 a["href"].strip() == link
                                 and "read more" in a.get_text(strip=True).lower()
                             ):
-                                print(
-                                    f"read more found : on feed with title '{title} : {a}'"
-                                )
                                 raise StopIteration  # skip this item
                     except StopIteration:
                         continue
