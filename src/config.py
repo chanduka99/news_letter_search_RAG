@@ -1,6 +1,9 @@
+from datetime import datetime
 from typing import ClassVar
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import BaseModel, Field, SecretStr
+
+from src.models.article_models import FeedItem
 
 
 # -----------------------------
@@ -23,11 +26,28 @@ class SupabaseDBSettings(BaseModel):
 
 
 # -----------------------------
+# RSSSettings
+# -----------------------------
+class RSSSettings(BaseModel):
+    feeds: list[FeedItem] = Field(
+        default_factory=list[FeedItem], description="List of RSS feed items"
+    )
+    default_start_date: datetime = Field(
+        default="2026-05-04", description="Default cutoff date"
+    )
+    batch_size: int = Field(
+        default=5, description="Number of articles to parse and ingest in a branch"
+    )
+
+
+# -----------------------------
 # Main Settings
 # -----------------------------
 class Settings(BaseSettings):
     supabase_db: SupabaseDBSettings = Field(default_factory=SupabaseDBSettings)
+    rss: RSSSettings = Field(default_factory=RSSSettings)
 
+    rss_config_yaml_path: str = "src/configs/feeds_rss.yaml"
     # Pydantic v2 model config
     model_config: ClassVar[SettingsConfigDict] = SettingsConfigDict(
         env_file=[".env"],

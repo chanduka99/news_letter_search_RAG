@@ -33,7 +33,7 @@ class SubstackArticle(Base):
     title: Mapped[str] = mapped_column(String, nullable=False)
     url: Mapped[str] = mapped_column(String, unique=True, nullable=False)
     content: Mapped[str] = mapped_column(String, nullable=False)
-    published_at: Mapped[datetime] = mapped_column(TIMESTAMP, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
+    published_at: Mapped[str] = mapped_column(TIMESTAMP, nullable=False)
+    created_at: Mapped[str] = mapped_column(
         TIMESTAMP, server_default=func.now(), nullable=False
     )
