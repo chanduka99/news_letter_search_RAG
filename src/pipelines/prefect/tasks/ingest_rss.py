@@ -65,7 +65,7 @@ def ingest_from_rss(
                     errors.append(f"Batch {batch_num}")
                 else:
                     logger.info(
-                        f"Ingested batch {batch_num} with {len(batch_num)} articles "
+                        f"Ingested batch {batch_num} with {len(batch)} articles "
                         f"for feed '{feed.name}'"
                     )
                 batch = []

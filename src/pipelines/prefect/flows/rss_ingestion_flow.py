@@ -43,7 +43,7 @@ def rss_ingestion_flow(article_model: type[SubstackArticle] = SubstackArticle) -
     total_ingested = 0
 
     try:
-        if settings.rss.feeds:
+        if not settings.rss.feeds:
             logger.warning("No feeds found in configuration.")
             return
 
