@@ -1,0 +1,7 @@
+feeds:
+- name: "AI Echoes"
+  author: "Benito Martin"
+  url: "https://aiechoes.substack.com/feed"
+- name: "Marvelous MLOps Substack"
+  author: "Başak Tuğçe Eskili and Maria Vechtomova"
+  url: "https://marvelousmlops.substack.com/feed"

@@ -4,7 +4,7 @@ from src.models.sql_models import SubstackArticle
 from src.pipelines.prefect.tasks.ingest_rss import ingest_from_rss
 from src.utils.logger_util import setup_logging
 from src.infrastructure.supabase.init_session import init_engine
-from src.pipelines.prefect.tasks import fetch_rss_entries
+from src.pipelines.prefect.tasks.fetch_rss import fetch_rss_entries
 
 from src.config import settings
 
@@ -39,7 +39,7 @@ def rss_ingestion_flow(article_model: type[SubstackArticle] = SubstackArticle) -
     errors = []
 
     # Tracking counters
-    per_feed_counts = dict[str, int] = {}
+    per_feed_counts: dict[str, int] = {}
     total_ingested = 0
 
     try:
@@ -123,3 +123,7 @@ def rss_ingestion_flow(article_model: type[SubstackArticle] = SubstackArticle) -
         engine.dispose()
         # log info
         logger.info("Database engine disposed.")
+
+
+if __name__ == "__main__":
+    rss_ingestion_flow(article_model=SubstackArticle)
