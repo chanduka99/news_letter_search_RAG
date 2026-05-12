@@ -1,5 +1,12 @@
+import gc
+import os
 from datetime import datetime
+from infrastructure.supabase.init_session import init_engine, init_session
 from prefect import task
+from utils.logger_util import setup_logging
+import dotenv
+
+dotenv.load_dotenv()
 
 
 @task(
@@ -23,3 +30,22 @@ async def ingest_qdrant(from_date: datetime | None = None):
         Exception: For unexpected errors during execution.
 
     """
+    logger = setup_logging()
+    logger.info(f"Starting Qdrant ingestion task from_date = {from_date}")
+
+    logger.info(f"QDRANT_URL: {os.getenv('QDRANT_URL')}")
+
+    # vectorstore = AsyncQdrantVectorStore()
+    engine = init_engine()
+    session = init_session(engine)
+
+    try:
+        pass
+    except Exception as e:
+        logger.error(f"Unexpected error during Qdrant ingestion: {e}")
+        raise RuntimeError("Qdrant ingestion failed") from e
+    finally:
+        session.close()
+        # vectorstore client close
+        gc.collect()
+        logger.info("Qdrant ingestion task complete and resources cleaned up")
