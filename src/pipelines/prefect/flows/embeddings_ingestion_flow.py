@@ -1,5 +1,7 @@
 from datetime import UTC, datetime, timedelta
-from prefect import flow
+from prefect import flow, get_client
+from prefect.client.schemas.filters import FlowFilter, FlowRunFilter
+from prefect.client.schemas.sorting import FlowRunSort
 from dateutil import parser
 from utils.logger_util import setup_logging
 from src.config import settings
@@ -26,7 +28,44 @@ async def get_last_successfull_run(flow_name: str) -> datetime | None:
     logger.info(f"Looking for last successful run of flow: {flow_name}")
 
     try:
-        pass
+        async with get_client() as client:
+            # Step 1: get flows matching that name
+            flows = await client.read_flow_runs(
+                flow_run_filter=FlowFilter(name=dict(eq_=flow_name))
+            )
+            logger.debug(f"Flows returned by Prefect API: {flows}")
+
+            exact_flow = next((f for f in flows if f.name == flow_name), None)
+            if not exact_flow:
+                logger.info(f"No flow found with exact name: {flow_name}")
+                return None
+            logger.info(f"Exact flow found: {exact_flow.id} {exact_flow.name}")
+
+            # Step 2: get recent completed runs
+            flow_runs = await client.read_flow_runs(
+                flow_run_filter=FlowRunFilter(
+                    state=dict(type=dict(any_=["COMPLETED"]))
+                ),
+                sort=FlowRunSort.START_TIME_DESC,
+                limit=10,
+            )
+            logger.info(f"Recent completed runs fetched: {[r.id for r in flow_runs]}")
+
+            # Step 3: ensure only runs for this flow. (filter flow runs that belong to the flow(the flow name we got as a parameter) we are searching for...)
+            flow_runs = [r for r in flow_runs if r.flow_id == exact_flow.id]
+            logger.debug(f"Filtered runs for exact flow: {[r.id for r in flow_runs]}")
+
+            if not flow_runs:
+                logger.info(f"No completed runs found for flow: {flow_name}")
+                return None
+
+            last_run_time = flow_runs[0].start_time
+            logger.info(
+                f"Last completed run for flow '{flow_name}' started at {last_run_time}"
+            )
+
+            return last_run_time
+
     except Exception as e:
         logger.error(f"Error fetching last successful run flow '{flow_name}': {e}")
         raise
