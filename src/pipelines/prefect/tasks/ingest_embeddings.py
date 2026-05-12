@@ -1,6 +1,7 @@
 import gc
 import os
 from datetime import datetime
+from infrastructure.qdrant.qdrant_vectorstore import AsyncQdrantVectorStore
 from infrastructure.supabase.init_session import init_engine, init_session
 from prefect import task
 from utils.logger_util import setup_logging
@@ -35,17 +36,17 @@ async def ingest_qdrant(from_date: datetime | None = None):
 
     logger.info(f"QDRANT_URL: {os.getenv('QDRANT_URL')}")
 
-    # vectorstore = AsyncQdrantVectorStore()
+    vectorstore = AsyncQdrantVectorStore()
     engine = init_engine()
     session = init_session(engine)
 
     try:
-        pass
+        await vectorstore.ingest_from_sql(session, from_date)
     except Exception as e:
         logger.error(f"Unexpected error during Qdrant ingestion: {e}")
         raise RuntimeError("Qdrant ingestion failed") from e
     finally:
         session.close()
-        # vectorstore client close
+        # vectorstore.client.close()
         gc.collect()
         logger.info("Qdrant ingestion task complete and resources cleaned up")
