@@ -43,6 +43,36 @@ class RSSSettings(BaseModel):
 
 
 # -----------------------------
+# Qdrant db settings
+# -----------------------------
+class QdrantSettings(BaseModel):
+    url: str = Field(default="", description="Qdrant API url")
+    api_key: str = Field(default="", description="Qdrant API key")
+    collection_name: str = Field(
+        default="substack_collection", description="Qdrant collection name"
+    )
+    article_batch_size: int = Field(
+        default=5, description="Number of articles to parse and ingest in a batch"
+    )
+    max_concurrent: int = Field(
+        default=2, description="Maximum number of concurrent tasks"
+    )
+    # dense_model_name: str = Field(
+    #     default="BAAI/bge-base-en", description="Dense model name"
+    # )
+    # sparse_model_name: str = Field(
+    #     default="Qdrant/bm25", description="Sparse model name"
+    # )
+    # vector_dim: int = Field(default=768, description="Vector dimension")
+
+    # sparse_batch_size: int = Field(default=32, description="Sparse batch size")
+    # embed_batch_size: int = Field(default=50, description="Dense batch size")
+    # upser_batch_size: int = Field(
+    #     default=50, description="Batch size for qdrant upsert"
+    # )
+
+
+# -----------------------------
 # YAML loader
 # -----------------------------
 def load_yaml_feeds(path: str):
@@ -70,6 +100,7 @@ def load_yaml_feeds(path: str):
 class Settings(BaseSettings):
     supabase_db: SupabaseDBSettings = Field(default_factory=SupabaseDBSettings)
     rss: RSSSettings = Field(default_factory=RSSSettings)
+    qdrant: QdrantSettings = Field(default_factory=QdrantSettings)
 
     rss_config_yaml_path: str = "src/configs/feeds_rss.yaml"
 

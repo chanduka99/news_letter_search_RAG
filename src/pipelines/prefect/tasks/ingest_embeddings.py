@@ -47,6 +47,6 @@ async def ingest_qdrant(from_date: datetime | None = None):
         raise RuntimeError("Qdrant ingestion failed") from e
     finally:
         session.close()
-        # vectorstore.client.close()
+        vectorstore.client.close()
         gc.collect()
         logger.info("Qdrant ingestion task complete and resources cleaned up")
