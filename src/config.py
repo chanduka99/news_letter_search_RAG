@@ -73,6 +73,31 @@ class QdrantSettings(BaseModel):
 
 
 # -----------------------------
+# Text splitting
+# -----------------------------
+class TextSplitterSettings(BaseModel):
+    chunk_size: int = Field(default=4000, description="Size of the chunks")
+    chunk_overlap: int = Field(default=200, description="Size of text chunks")
+    seperators: list[str] = Field(
+        default_factory=lambda: [
+            "\n---\n",
+            "\n\n",
+            "\n```\n",
+            "\n## ",
+            "\n# ",
+            "\n**",
+            "\n",
+            ". ",
+            "! ",
+            "? ",
+            " ",
+            "",
+        ],
+        description="List of seperators for text splitting. The order of seperators matter",
+    )
+
+
+# -----------------------------
 # YAML loader
 # -----------------------------
 def load_yaml_feeds(path: str):
@@ -101,6 +126,7 @@ class Settings(BaseSettings):
     supabase_db: SupabaseDBSettings = Field(default_factory=SupabaseDBSettings)
     rss: RSSSettings = Field(default_factory=RSSSettings)
     qdrant: QdrantSettings = Field(default_factory=QdrantSettings)
+    text_splitter: TextSplitterSettings = Field(default_factory=TextSplitterSettings)
 
     rss_config_yaml_path: str = "src/configs/feeds_rss.yaml"
 
