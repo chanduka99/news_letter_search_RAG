@@ -56,14 +56,14 @@ class TextSplitter:
             seperators=self.seperators,
         )
 
-        def split_text(self, text: str) -> list[str]:
-            """Split the input text into chunks based on configured size, overlap, and separators.
+    def split_text(self, text: str) -> list[str]:
+        """Split the input text into chunks based on configured size, overlap, and separators.
 
-            Args:
-                text (str): The text to split.
+        Args:
+            text (str): The text to split.
 
-            Returns:
-                list[str]: List of text chunks.
+        Returns:
+            list[str]: List of text chunks.
 
-            """
-            return self.splitter.split_text(text)
+        """
+        return self.splitter.split_text(text)

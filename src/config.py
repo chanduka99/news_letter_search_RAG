@@ -57,19 +57,19 @@ class QdrantSettings(BaseModel):
     max_concurrent: int = Field(
         default=2, description="Maximum number of concurrent tasks"
     )
-    # dense_model_name: str = Field(
-    #     default="BAAI/bge-base-en", description="Dense model name"
-    # )
-    # sparse_model_name: str = Field(
-    #     default="Qdrant/bm25", description="Sparse model name"
-    # )
+    upser_batch_size: int = Field(
+        default=50, description="Batch size for qdrant upsert"
+    )
+    dense_model_name: str = Field(
+        default="BAAI/bge-base-en", description="Dense model name"
+    )
+    sparse_model_name: str = Field(
+        default="Qdrant/bm25", description="Sparse model name"
+    )
     # vector_dim: int = Field(default=768, description="Vector dimension")
 
-    # sparse_batch_size: int = Field(default=32, description="Sparse batch size")
+    sparse_batch_size: int = Field(default=32, description="Sparse batch size")
     # embed_batch_size: int = Field(default=50, description="Dense batch size")
-    # upser_batch_size: int = Field(
-    #     default=50, description="Batch size for qdrant upsert"
-    # )
 
 
 # -----------------------------
