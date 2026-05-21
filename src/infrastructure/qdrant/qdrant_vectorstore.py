@@ -1,5 +1,11 @@
+from functools import partial
+import gc
+
+from huggingface_hub import InferenceClient
+import numpy as np
 import hashlib
 import time
+import requests
 import asyncio
 from collections.abc import AsyncGenerator
 from datetime import datetime
@@ -8,8 +14,8 @@ import uuid
 from models.vectorstore_models import ArticleChunkPayload
 from sqlalchemy.orm import Session
 from qdrant_client import AsyncQdrantClient
-from qdrant_client.models import SparseVector
-from utils.logger_util import setup_logging
+from qdrant_client.models import SparseVector, Batch
+from utils.logger_util import log_batch_status, setup_logging
 from utils.text_splitter import TextSplitter
 from src.config import settings
 from src.models.sql_models import SubstackArticle
@@ -39,7 +45,7 @@ class AsyncQdrantVectorStore:
         # -----------------------------
         # Models & config
         # -----------------------------
-        self.dense_verctors = TextEmbedding(
+        self.dense_model = TextEmbedding(
             model_name=vector_db.dense_model_name,
             cache_dir=cache_dir,  # only uses cache_dir is provided
         )
@@ -62,6 +68,24 @@ class AsyncQdrantVectorStore:
         # Logging
         # -----------------------------
         self.logger = setup_logging()
+        self.log_batch_status = partial(log_batch_status, self.logger)
+
+        # -----------------------------
+        # Jina settings (optional)
+        # -----------------------------
+        self.jina_settings = settings.jina_settings
+        self.use_jina = False  # Set to True to enable Jina Intergration
+
+        # -----------------------------
+        # Hugging Face settings (optional)
+        # -----------------------------
+        self.hugging_face_settings = settings.huggingface_settings
+
+        self.hf_client = InferenceClient(
+            provider="auto", api_key=self.hugging_face_settings.api_key
+        )
+        self.hf_model = self.hugging_face_settings.model
+        self.use_hf = False  # Set to True to enable HF integration
 
     async def ingest_from_sql(self, session: Session, from_date: datetime | None):
         """Ingest articles from SQL database into Qdrant vector store.
@@ -89,9 +113,10 @@ class AsyncQdrantVectorStore:
 
         try:
             # Limit concurrency to avoid ingestion overload into Qdrant
-            samaphore = asyncio.Semaphore(max(2, self.max_concurrent))
+            semaphore = asyncio.Semaphore(max(2, self.max_concurrent))
 
             total_articles = 0
+
             total_chunks = 0
             start_time = time.time()
 
@@ -166,10 +191,159 @@ class AsyncQdrantVectorStore:
                     sub_payloads = all_payloads[start : start + self.upsert_batch_size]
 
                     batch_start_time = time.time()  # start time for the batch
+
                     # generate sparse and dense vec embeddings for the sub_chunks
+                    dense_embeddings, sparse_embeddings = self.embed_batch_async(
+                        sub_chunks
+                    )
+
+                    async with semaphore:
+                        await self.client.upsert(
+                            collection_name=self.collection_name,
+                            points=Batch(
+                                ids=sub_ids,
+                                payloads=[p.dcit for p in sub_payloads],
+                                vectors={
+                                    "Dense": dense_embeddings,
+                                    "Sparse": sparse_embeddings,
+                                },
+                            ),
+                        )
+                    total_articles += len(sub_chunks)
+
+                    # -----------------------------
+                    # Throughput logging
+                    # -----------------------------
+                    batch_elapsed = time.time() - batch_start_time
+                    batch_speed = (
+                        len(sub_chunks) / batch_elapsed if batch_elapsed > 0 else 0
+                    )
+                    cumulative_elapsed = time.time() - start_time
+                    cumulative_speed = (
+                        total_chunks / cumulative_elapsed
+                        if cumulative_elapsed > 0
+                        else 0
+                    )
+
+                    self.log_batch_status(
+                        action="Batch Ingested",
+                        batch_size=len(sub_chunks),
+                        total_articles=total_articles,
+                        total_chunks=total_chunks,
+                    )
+
+                    self.logger.info(
+                        f"Batch Ingested  : {len(sub_chunks)} chunks | "
+                        f"Batch Speed     : {batch_speed:.2f} chunk/sec | "
+                        f"Cumulative Speed: {cumulative_speed:.2f} chunks/sec | "
+                        f"Total articles  : {total_articles}, Total_chunks: {total_chunks}"
+                    )
+
+                    del (
+                        dense_embeddings,
+                        sparse_embeddings,
+                        sub_chunks,
+                        sub_ids,
+                        sub_payloads,
+                    )
+                    gc.collect()
+            # -----------------------------
+            # Final cumulative average
+            # -----------------------------
+            final_elapsed = time.time() - start_time
+            final_speed = total_chunks / final_elapsed if final_elapsed > 0 else 0
+            self.logger.info(
+                f"Ingestion complete : {total_articles} articles, {total_chunks} chunks, "
+                f"final average speed: {final_speed:2f} chunks/sec"
+            )
         except Exception as e:
             self.logger.error(f"Failed to ingest articles to Qdrant: {e}")
             raise RuntimeError("Error during SQL to Qdrant ingestion")
+
+    # -----------------------------
+    # Embeddings
+    # -----------------------------
+    def jina_dense_vectors(self, texts: list[str]) -> list[list[float]]:
+        """Generate dense vectors using Jina API.
+
+        Args:
+            texts (list[str]): List of text strings to embed.
+
+        Returns:
+            list[list[float]]: List of dense vector embeddings.
+
+        Raises:
+            requests.RequestException: If the Jina API request fails.
+
+        """
+        try:
+            url = getattr(self, "jina_url" f"{self.jina_settings.url}")
+            headers = getattr(
+                self,
+                "jina_headers",
+                {
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {self.jina_settings.api_key}",
+                },
+            )
+            data = {
+                "model": f"{self.jina_settings.model}",
+                "task": "retrieval.passage",
+                "dimensions": self.embedding_size,
+                "input": texts,
+            }
+            response = requests.post(url, headers=headers, json=data)
+            response.raise_for_status()
+            return [item["embedding"] for item in response.json().get("data", [])]
+        except Exception as e:
+            self.logger.error(f"Jina API request failed: {e}")
+            raise
+
+    def hf_dense_vectors(self, texts: list[str]) -> list[list[float]]:
+        """Generate dense vectors using Hugging Face Inference API.
+
+        Args:
+            texts (list[str]): List of text strings to embed.
+
+        Returns:
+            list[list[float]]: List of dense vector embeddings.
+
+        Raises:
+            Exception: If Hugging Face inference fails.
+
+        """
+        try:
+            vectors = []
+            for text in texts:
+                arr = self.hf_client.feature_extraction(text, model=self.hf_model)
+                vectors.append(arr.tolist() if isinstance(arr, np.ndarray) else arr)
+            return vectors
+        except Exception as e:
+            self.logger.error(f"Hugging Face API request failed: {e}")
+            raise
+
+    def dense_vectors(self, texts: list[str]) -> list[list[float]]:
+        """Generate dense vectors using configured model (Jina, Hugging Face, or local).
+
+        Args:
+            texts (list[str]): List of text strings to embed.
+
+        Returns:
+            list[list[float]]: List of dense vector embeddings.
+
+        Raises:
+            Exception: If embedding generation fails.
+
+        """
+        try:
+            if self.use_jina:
+                return self.jina_dense_vectors(texts)
+            elif self.use_hf:
+                return self.hf_dense_vectors(texts)
+            return [vec.tolist() for vec in self.dense_model.embed(texts)]
+        except Exception as e:
+            self.logger.error(f"Failed to generate dense vectors: {e}")
+            raise
 
     # -----------------------------
     # Embedding helpers
@@ -237,8 +411,14 @@ class AsyncQdrantVectorStore:
             dense_results, sparse_restults = asyncio.gather(dense_task, sparse_task)
 
             # Convert to upsert-friendly format
-            dense_vecs = []
-            sparse_vecs = []
+            dense_vecs = [
+                vec.tolist() if isinstance(vec, np.ndarray) else vec
+                for vec in dense_results
+            ]
+            sparse_vecs = [
+                SparseVector(indices=se.indices.tolist(), values=se.values.tolist())
+                for se in sparse_restults
+            ]
 
             # Free memory
             del dense_results, sparse_restults

@@ -98,6 +98,27 @@ class TextSplitterSettings(BaseModel):
 
 
 # -----------------------------
+# Jina settings
+# -----------------------------
+class JinaSettings(BaseModel):
+    api_key: str = Field(default="", description="Jina API key")
+    url: str = Field(
+        default="https://api.jina.ai/v1/embeddings", description="Jina API url"
+    )
+    model: str = Field(default="jina-embedding-v3", description="Jina model name")
+
+
+# -----------------------------
+# Hugging Face settings
+# -----------------------------
+class HuggingFaceSettings(BaseModel):
+    api_key: str = Field(default="", description="Hugging Face API key")
+    model: str = Field(
+        default="BAAI/bge-base-en-v1.5", description="Hugging Face model name"
+    )
+
+
+# -----------------------------
 # YAML loader
 # -----------------------------
 def load_yaml_feeds(path: str):
@@ -127,6 +148,10 @@ class Settings(BaseSettings):
     rss: RSSSettings = Field(default_factory=RSSSettings)
     qdrant: QdrantSettings = Field(default_factory=QdrantSettings)
     text_splitter: TextSplitterSettings = Field(default_factory=TextSplitterSettings)
+    jina_settings: JinaSettings = Field(default_factory=JinaSettings)
+    huggingface_settings: HuggingFaceSettings = Field(
+        default_factory=HuggingFaceSettings
+    )
 
     rss_config_yaml_path: str = "src/configs/feeds_rss.yaml"
 
