@@ -32,10 +32,26 @@ qdrant-delete-collection: ## Delete Qdrant collection
 	@echo "Deleting Qdrant collection..."
 	uv run python -m src.infrastructure.qdrant.delete_collection
 
-qdrant-create-index:  ## Create Qdrant index
+qdrant-create-indexes:  ## Create Qdrant index
 	@echo "Updating HNSW and creating Qdrant indexes..."
 	uv run python -m src.infrastructure.qdrant.create_indexes
 
 qdrant-ingest-from-sql:
 	@echo "Ingesting data from SQL to Qdrant..."
 	uv run python -m src.infrastructure.qdrant.ingest_from_sql
+
+#################################################################################
+## Prefect Flow Commands
+#################################################################################
+
+ingest-rss-article-flow:
+	@echo "Running ingest articles flow..."
+	uv run python -m src.piplines.qdrant.flows.rss_ingestion_flow
+	@echo "Ingest RSS articles flow completed."
+
+ingest-embedding-flow:
+	@echo "Running ingest embeddings flow..."
+	$(if $(FROM_DATE), \
+	uv run python -m src.piplines.qdrant.embeddings_ingestion_flow --from_date $(FROM_DATE),\
+	uv run python -m src.piplines.qdrant.embeddings_ingestion_flow)
+	@echo "Ingest emebeddings flow completed."

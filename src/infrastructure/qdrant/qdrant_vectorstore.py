@@ -13,7 +13,18 @@ from functools import partial
 from models.vectorstore_models import ArticleChunkPayload
 from sqlalchemy.orm import Session
 from qdrant_client import AsyncQdrantClient
-from qdrant_client.models import Distance, SparseVector, Batch, models
+from qdrant_client.models import (
+    Distance,
+    Snowball,
+    SnowballLanguage,
+    SnowballParams,
+    SparseVector,
+    Batch,
+    TextIndexParams,
+    TextIndexType,
+    TokenizerType,
+    models,
+)
 from qdrant_client.http.exceptions import UnexpectedResponse
 from utils.logger_util import log_batch_status, setup_logging
 from utils.text_splitter import TextSplitter
@@ -527,3 +538,160 @@ class AsyncQdrantVectorStore:
                 f"Failed to delete collection '{self.collection_name}': {e}"
             )
             raise RuntimeError("Error deleting Qdrant collection") from e
+
+    # -----------------------------
+    # Update collection to enable HNSW
+    # -----------------------------
+    async def enable_hnsw(self, m: int = 16, indexing_threshold: int = 20000) -> None:
+        """Enable HNSW indexing for the Qdrant collection.
+
+        Updates collection to enable HNSW graph with specified parameters.
+
+        Args:
+            m (int, optional): HNSW graph connectivity parameter. Defaults to 16.
+            indexing_threshold (int, optional): Threshold for indexing. Defaults to 20000.
+
+        Returns:
+            None
+
+        Raises:
+            RuntimeError: If HNSW update fails.
+            Exception: For unexpected errors.
+
+        """
+        try:
+            self.logger.info(
+                f"Enabling HNSW for collection '{self.collection_name}' "
+                f"with m={m} and indexing threshold = {indexing_threshold}"
+            )
+            await self.client.update_collection(
+                collection_name=self.collection_name,
+                vectors_config={
+                    "Dense": models.VectorParamsDiff(hnsw_config=models.HnswConfig(m=m))
+                },
+                hnsw_config=models.HnswConfigDiff(m=m),
+                optimizers_config=models.OptimizersConfigDiff(
+                    indexing_threshold=indexing_threshold
+                ),
+            )
+
+            self.logger.info(f"HNSW enabled for collection '{self.collection_name}'")
+        except Exception as e:
+            self.logger.error(
+                f"Failed to enable HNSW for collection '{self.collection_name}': {e}"
+            )
+            raise RuntimeError("Error enabling HNSW indexing") from e
+
+    # -----------------------------
+    # Indexes
+    # -----------------------------
+    async def create_title_index(self) -> None:
+        """Create text index for title field with Snowball stemmer.
+
+        Returns:
+            None
+
+        Raises:
+            RuntimeError: If index creation fails.
+            Exception: For unexpected errors.
+
+        """
+        try:
+            self.logger.info(f"Creating title index for '{self.collection_name}'")
+            await self.client.create_payload_index(
+                collection_name=self.collection_name,
+                field_name="title",
+                field_schema=TextIndexParams(
+                    type=TextIndexType.TEXT,
+                    tokenizer=TokenizerType.WORD,
+                    stopwords=models.Language.ENGLISH,
+                    lowercase=True,
+                    phrase_matching=False,
+                    stemmer=SnowballParams(
+                        type=Snowball.SNOWBALL, language=SnowballLanguage.ENGLISH
+                    ),
+                ),
+            )
+            self.logger.info(f"title index created for '{self.collection_name}'")
+        except Exception as e:
+            self.logger.error(f"Failed to create title index: {e}")
+            raise RuntimeError("Error creating title index") from e
+
+    async def create_article_authors_index(self) -> None:
+        """Create keyword index for article_authors field.
+
+        Returns:
+            None
+
+        Raises:
+            RuntimeError: If index creation fails.
+            Exception: For unexpected errors.
+
+        """
+        try:
+            self.logger.info(
+                f"Creating article_authors index for '{self.collection_name}'"
+            )
+            await self.client.create_payload_index(
+                collection_name=self.collection_name,
+                field_name="article_authors",
+                field_schema=models.KeywordIndexParams(
+                    type=models.KeywordIndexType.KEYWORD
+                ),
+            )
+            self.logger.info(
+                f"article_authors index created for '{self.collection_name}'"
+            )
+        except Exception as e:
+            self.logger.error(f"Failed to create article_authors index: {e}")
+            raise RuntimeError("Error creating article_authors index") from e
+
+    async def create_feed_author_index(self) -> None:
+        """Create keyword index for feed_author field.
+
+        Returns:
+            None
+
+        Raises:
+            RuntimeError: If index creation fails.
+            Exception: For unexpected errors.
+
+        """
+        try:
+            self.logger.info(f"Creating feed_author index for '{self.collection_name}'")
+            await self.client.create_payload_index(
+                collection_name=self.collection_name,
+                field_name="feed_author",
+                field_schema=models.KeywordIndexParams(
+                    type=models.KeywordIndexType.KEYWORD
+                ),
+            )
+            self.logger.info(f"feed_author index created for '{self.collection_name}'")
+        except Exception as e:
+            self.logger.error(f"Failed to create feed_author index: {e}")
+            raise RuntimeError("Error creating feed_author index") from e
+
+    async def create_article_feed_name_index(self) -> None:
+        """Create keyword index for feed_name field.
+
+        Returns:
+            None
+
+        Raises:
+            RuntimeError: If index creation fails.
+            Exception: For unexpected errors.
+
+        """
+        try:
+            self.logger.info(f"Creating feed_name index for '{self.collection_name}'")
+            await self.client.create_payload_index(
+                collection_name=self.collection_name,
+                field_name="feed_name",
+                field_schema=models.KeywordIndexParams(
+                    type=models.KeywordIndexType.KEYWORD
+                ),
+            )
+            self.logger.info(f"feed_name index created for '{self.collection_name}'")
+        except Exception as e:
+            self.logger.error(f"Failed to create feed_name index: {e}")
+            raise RuntimeError("Error creating feed_name index") from e

@@ -31,7 +31,6 @@ async def main() -> None:
     try:
         # Initialize the AsynQdrantVectorStore instance
         vectorstore = AsyncQdrantVectorStore()
-
         await vectorstore.create_collection()
         logger.info("Qdrant collection created successfully")
     except RuntimeError as e:
