@@ -66,8 +66,7 @@ class QdrantSettings(BaseModel):
     sparse_model_name: str = Field(
         default="Qdrant/bm25", description="Sparse model name"
     )
-    # vector_dim: int = Field(default=768, description="Vector dimension")
-
+    vector_dim: int = Field(default=768, description="Vector dimension")
     sparse_batch_size: int = Field(default=32, description="Sparse batch size")
     # embed_batch_size: int = Field(default=50, description="Dense batch size")
 

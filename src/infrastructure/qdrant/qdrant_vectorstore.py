@@ -1,20 +1,20 @@
-from functools import partial
 import gc
-
-from huggingface_hub import InferenceClient
 import numpy as np
 import hashlib
 import time
 import requests
 import asyncio
-from collections.abc import AsyncGenerator
-from datetime import datetime
-from fastembed import TextEmbedding, SparseTextEmbedding
 import uuid
+from huggingface_hub import InferenceClient
+from collections.abc import AsyncGenerator
+from fastembed import TextEmbedding, SparseTextEmbedding
+from datetime import datetime
+from functools import partial
 from models.vectorstore_models import ArticleChunkPayload
 from sqlalchemy.orm import Session
 from qdrant_client import AsyncQdrantClient
-from qdrant_client.models import SparseVector, Batch
+from qdrant_client.models import Distance, SparseVector, Batch, models
+from qdrant_client.http.exceptions import UnexpectedResponse
 from utils.logger_util import log_batch_status, setup_logging
 from utils.text_splitter import TextSplitter
 from src.config import settings
@@ -54,6 +54,7 @@ class AsyncQdrantVectorStore:
             cache_dir=cache_dir,  # only uses chache_dir is provided
         )
         self.sparse_batch_size = vector_db.sparse_batch_size
+        self.embedding_size = vector_db.vector_dim
         # -----------------------------
         # Qdrant client & collection
         # -----------------------------
@@ -63,6 +64,14 @@ class AsyncQdrantVectorStore:
         self.max_concurrent = vector_db.max_concurrent
         self.upsert_batch_size = vector_db.upser_batch_size
         self.text_splitter = TextSplitter()
+        self.sparse_vector_config = {
+            "Sparse": models.SparseVectorParams(modifier=models.Modifier.IDF)
+        }
+        self.quantization_config = models.ScalarQuantization(
+            scalar=models.ScalarQuantizationConfig(
+                type=models.ScalarType.INT8, quantile=0.99, always_ram=False
+            )
+        )
 
         # -----------------------------
         # Logging
@@ -426,3 +435,95 @@ class AsyncQdrantVectorStore:
         except Exception as e:
             self.logger.error(f"Failed to generate embeddings: {e}")
             raise RuntimeError("Error generating batch embeddings") from e
+
+    # -----------------------------
+    # Collection mangement
+    # -----------------------------
+    async def create_collection(self) -> None:
+        """Create Qdrant collection if it does not exist.
+
+        Checks for existing collection and creates a new one with dense and sparse vector
+        configurations if needed. Logs errors and skips if collection exists.
+
+        Returns:
+            None
+
+        Raises:
+            RuntimeError: If collection creation fails.
+            Exception: For unexpected errors.
+
+        """
+        try:
+            exists = await self.client.get_collection(
+                collection_name=self.collection_name
+            )
+            if exists:
+                self.logger.info(
+                    f"Collection '{self.collection_name}' already exists. Skipping creation."
+                )
+                return
+        except UnexpectedResponse as e:
+            if e.status_code == 400:
+                self.logger.info(
+                    f"Collection '{self.collection_name}' does not exist. Will create it."
+                )
+            else:
+                self.logger.error(f"Unexpected Qdrant error: {e}")
+                raise RuntimeError("Failed to check collection existence") from e
+
+        try:
+            self.logger.info(f"Creating Qdrant collection: {self.collection_name}")
+            await self.client.create_collection(
+                collection_name=self.collection_name,
+                vectors_config={
+                    "Dense": models.VectorParams(
+                        size=self.embedding_size, distance=Distance.COSINE
+                    )
+                },
+                sparse_vectors_config=self.sparse_vector_config,
+                quantization_config=self.quantization_config,
+                hnsw_config=models.HnswConfigDiff(m=0),
+                optimizers_config=models.OptimizersConfigDiff(indexing_threshold=0),
+            )
+            self.logger.info(
+                f"Collection '{self.collection_name}' created successfully."
+            )
+        except Exception as e:
+            self.logger.info(
+                f"Failed to create Qdrant collection: {self.collection_name}: {e}"
+            )
+            raise RecursionError("Error creating Qdrant collection") from e
+
+    async def delete_collection(self) -> None:
+        """Delete Qdrant collection after user confirmation.
+
+        Prompts user to confirm deletion to prevent accidental data loss. Logs errors and
+        skips if canceled.
+
+        Returns:
+            None
+
+        Raises:
+            RuntimeError: If collection deletion fails.
+            Exception: For unexpected errors.
+
+        """
+        confirm = input(
+            f"Are you sure you want to DELETE the Qdrant collection "
+            f"'{self.collection_name}'? Type 'YES' to confirm: "
+        )
+        if confirm != "YES":
+            self.logger.info(
+                f"Deletion of collection '{self.collection_name}' canceled by user."
+            )
+            return
+
+        try:
+            self.logger.info(f"Deleting Qdrant collection: {self.collection_name}")
+            await self.client.delete_collection(collection_name=self.collection_name)
+            self.logger.info(f"Qdrant collection '{self.collection_name}' deleted.")
+        except Exception as e:
+            self.logger.error(
+                f"Failed to delete collection '{self.collection_name}': {e}"
+            )
+            raise RuntimeError("Error deleting Qdrant collection") from e
